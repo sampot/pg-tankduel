@@ -26,6 +26,8 @@ export const MAX_HP = 5;
  *   alive: boolean,
  *   move: number,
  *   turn: number,
+ *   aiThink?: number,
+ *   style?: number,
  * }} Tank
  */
 
@@ -75,7 +77,9 @@ export class TankDuelGame {
   constructor() {
     /** @type {'ready'|'playing'|'won'|'lost'} */
     this.status = "ready";
-    this.message = "點「開戰」開始對決";
+    /** @type {'pve'|'aivai'} */
+    this.mode = "pve";
+    this.message = "選模式後點「開戰」";
     this.score = 0;
     this.wins = 0;
     this.walls = makeWalls();
@@ -86,12 +90,11 @@ export class TankDuelGame {
     /** @type {{ x: number, y: number, t: number, big: boolean }[]} */
     this.explosions = [];
     this.shake = 0;
-    this.aiThink = 0;
   }
 
   reset() {
     this.status = "ready";
-    this.message = "點「開戰」開始對決";
+    this.message = "選模式後點「開戰」";
     this.score = 0;
     this.walls = makeWalls();
     this.tanks = [];
@@ -100,15 +103,18 @@ export class TankDuelGame {
     this.shake = 0;
   }
 
-  start() {
+  /**
+   * @param {'pve'|'aivai'} [mode]
+   */
+  start(mode = this.mode) {
+    this.mode = mode;
     this.status = "playing";
-    this.message = "摧毀敵方戰車！";
+    this.message = mode === "aivai" ? "觀戰：綠 AI vs 紅 AI" : "摧毀敵方戰車！";
     this.score = 0;
     this.walls = makeWalls();
     this.bullets = [];
     this.explosions = [];
     this.shake = 0;
-    this.aiThink = 0;
     this.tanks = [
       {
         id: nid(),
@@ -122,6 +128,8 @@ export class TankDuelGame {
         alive: true,
         move: 0,
         turn: 0,
+        aiThink: 0.2,
+        style: mode === "aivai" ? 0 : 0,
       },
       {
         id: nid(),
@@ -131,10 +139,12 @@ export class TankDuelGame {
         angle: Math.PI / 2,
         turret: Math.PI / 2,
         hp: MAX_HP,
-        cool: 0.4,
+        cool: 0.35,
         alive: true,
         move: 0,
         turn: 0,
+        aiThink: 0.1,
+        style: 1,
       },
     ];
   }
@@ -145,6 +155,10 @@ export class TankDuelGame {
 
   get enemy() {
     return this.tanks.find((t) => t.side === "enemy");
+  }
+
+  get isWatching() {
+    return this.mode === "aivai";
   }
 
   /**
@@ -193,44 +207,49 @@ export class TankDuelGame {
     const enemy = this.enemy;
     if (!player || !enemy) return { events };
 
-    // player control
-    if (player.alive) {
-      const mag = Math.hypot(input.mx, input.my);
-      if (mag > 0.15) {
-        const target = Math.atan2(input.my, input.mx);
-        let diff = target - player.angle;
-        while (diff > Math.PI) diff -= Math.PI * 2;
-        while (diff < -Math.PI) diff += Math.PI * 2;
-        player.angle += Math.max(-TURN_SPEED * dt, Math.min(TURN_SPEED * dt, diff));
-        const speed = TANK_SPEED * Math.min(1, mag);
-        this.moveTank(player, Math.cos(player.angle) * speed * dt, Math.sin(player.angle) * speed * dt);
+    if (this.mode === "aivai") {
+      if (player.alive) {
+        this.updateAi(player, enemy, dt, events, "fire");
+        player.cool = Math.max(0, player.cool - dt);
       }
-      // aim turret toward stick aim or last aim
-      if (Math.hypot(input.aimX, input.aimY) > 0.2) {
-        player.turret = Math.atan2(input.aimY, input.aimX);
-      } else {
-        player.turret = player.angle;
+      if (enemy.alive) {
+        this.updateAi(enemy, player, dt, events, "enemyFire");
+        enemy.cool = Math.max(0, enemy.cool - dt);
       }
-      player.cool = Math.max(0, player.cool - dt);
-      if (input.fire) {
-        if (this.tryFire(player)) events.push("fire");
+    } else {
+      if (player.alive) {
+        const mag = Math.hypot(input.mx, input.my);
+        if (mag > 0.15) {
+          const target = Math.atan2(input.my, input.mx);
+          let diff = target - player.angle;
+          while (diff > Math.PI) diff -= Math.PI * 2;
+          while (diff < -Math.PI) diff += Math.PI * 2;
+          player.angle += Math.max(-TURN_SPEED * dt, Math.min(TURN_SPEED * dt, diff));
+          const speed = TANK_SPEED * Math.min(1, mag);
+          this.moveTank(player, Math.cos(player.angle) * speed * dt, Math.sin(player.angle) * speed * dt);
+        }
+        if (Math.hypot(input.aimX, input.aimY) > 0.2) {
+          player.turret = Math.atan2(input.aimY, input.aimX);
+        } else {
+          player.turret = player.angle;
+        }
+        player.cool = Math.max(0, player.cool - dt);
+        if (input.fire) {
+          if (this.tryFire(player)) events.push("fire");
+        }
+      }
+      if (enemy.alive) {
+        this.updateAi(enemy, player, dt, events, "enemyFire");
+        enemy.cool = Math.max(0, enemy.cool - dt);
       }
     }
 
-    // AI
-    if (enemy.alive) {
-      this.updateAi(enemy, player, dt, events);
-      enemy.cool = Math.max(0, enemy.cool - dt);
-    }
-
-    // bullets
     for (const b of this.bullets) {
       b.x += b.vx * dt;
       b.y += b.vy * dt;
       b.life -= dt;
     }
 
-    // bullet collisions
     for (const b of this.bullets) {
       if (b.life <= 0) continue;
       if (!inBounds(b.x, b.y, BULLET_R) || hitsWall(b.x, b.y, BULLET_R, this.walls)) {
@@ -253,17 +272,19 @@ export class TankDuelGame {
             t.hp = 0;
             this.boom(t.x, t.y, true);
             if (t.side === "enemy") {
-              this.score += 100;
+              this.score += this.mode === "aivai" ? 0 : 100;
               this.wins += 1;
               this.status = "won";
-              this.message = "敵方擊毀！再戰一回合？";
+              this.message =
+                this.mode === "aivai" ? "綠方 AI 獲勝！" : "敵方擊毀！再戰一回合？";
               events.push("win");
             } else {
               this.status = "lost";
-              this.message = "我方陣亡…再試一次";
+              this.message =
+                this.mode === "aivai" ? "紅方 AI 獲勝！" : "我方陣亡…再試一次";
               events.push("lose");
             }
-          } else if (t.side === "enemy") {
+          } else if (t.side === "enemy" && this.mode === "pve") {
             this.score += 20;
           }
         }
@@ -292,7 +313,6 @@ export class TankDuelGame {
     const nx = tank.x + dx;
     const ny = tank.y + dy;
     if (inBounds(nx, tank.y, TANK_R) && !hitsWall(nx, tank.y, TANK_R, this.walls)) {
-      // avoid overlapping other tanks
       let ok = true;
       for (const o of this.tanks) {
         if (o.id === tank.id || !o.alive) continue;
@@ -311,48 +331,55 @@ export class TankDuelGame {
   }
 
   /**
-   * @param {Tank} enemy
-   * @param {Tank} player
+   * @param {Tank} self
+   * @param {Tank} target
    * @param {number} dt
    * @param {string[]} events
+   * @param {string} fireEvent
    */
-  updateAi(enemy, player, dt, events) {
-    this.aiThink -= dt;
-    const toP = Math.atan2(player.y - enemy.y, player.x - enemy.x);
-    // turret tracks player
-    let tdiff = toP - enemy.turret;
+  updateAi(self, target, dt, events, fireEvent) {
+    if (self.aiThink == null) self.aiThink = 0;
+    self.aiThink -= dt;
+
+    // style 0 = aggressive closer; style 1 = keep distance / strafe more
+    const style = self.style ?? (self.side === "enemy" ? 1 : 0);
+    const turnRate = style === 0 ? 0.95 : 0.78;
+    const aimSnap = style === 0 ? 0.2 : 0.14;
+    const preferDist = style === 0 ? 110 : 170;
+    const speedMul = style === 0 ? 0.8 : 0.68;
+
+    const toT = Math.atan2(target.y - self.y, target.x - self.x);
+    let tdiff = toT - self.turret;
     while (tdiff > Math.PI) tdiff -= Math.PI * 2;
     while (tdiff < -Math.PI) tdiff += Math.PI * 2;
-    enemy.turret += Math.max(-2.8 * dt, Math.min(2.8 * dt, tdiff));
+    self.turret += Math.max(-2.8 * dt, Math.min(2.8 * dt, tdiff));
 
-    // body turns toward player with some wander
-    let adiff = toP - enemy.angle;
+    let adiff = toT - self.angle;
     while (adiff > Math.PI) adiff -= Math.PI * 2;
     while (adiff < -Math.PI) adiff += Math.PI * 2;
-    enemy.angle += Math.max(-TURN_SPEED * 0.85 * dt, Math.min(TURN_SPEED * 0.85 * dt, adiff));
+    self.angle += Math.max(-TURN_SPEED * turnRate * dt, Math.min(TURN_SPEED * turnRate * dt, adiff));
 
-    const dist = Math.hypot(player.x - enemy.x, player.y - enemy.y);
-    let speed = TANK_SPEED * 0.72;
-    if (dist < 90) speed *= -0.55;
-    else if (dist < 160) speed *= 0.35;
-    this.moveTank(enemy, Math.cos(enemy.angle) * speed * dt, Math.sin(enemy.angle) * speed * dt);
+    const dist = Math.hypot(target.x - self.x, target.y - self.y);
+    let speed = TANK_SPEED * speedMul;
+    if (dist < preferDist - 40) speed *= -0.6;
+    else if (dist < preferDist) speed *= 0.25;
+    else if (dist > preferDist + 80) speed *= 1.05;
+    this.moveTank(self, Math.cos(self.angle) * speed * dt, Math.sin(self.angle) * speed * dt);
 
-    // strafe occasionally
-    if (this.aiThink <= 0) {
-      this.aiThink = 0.4 + Math.random() * 0.7;
+    if (self.aiThink <= 0) {
+      self.aiThink = 0.35 + Math.random() * (style === 1 ? 0.9 : 0.55);
       const side = Math.random() < 0.5 ? 1 : -1;
+      const strafe = style === 1 ? 22 : 14;
       this.moveTank(
-        enemy,
-        Math.cos(enemy.angle + Math.PI / 2) * side * 18,
-        Math.sin(enemy.angle + Math.PI / 2) * side * 18,
+        self,
+        Math.cos(self.angle + Math.PI / 2) * side * strafe,
+        Math.sin(self.angle + Math.PI / 2) * side * strafe,
       );
     }
 
-    // fire when roughly aimed
-    if (Math.abs(tdiff) < 0.18 && dist < 280 && enemy.cool <= 0) {
-      // line of sight rough check: skip if wall between (sample)
-      if (this.hasLos(enemy.x, enemy.y, player.x, player.y)) {
-        if (this.tryFire(enemy)) events.push("enemyFire");
+    if (Math.abs(tdiff) < aimSnap && dist < 300 && self.cool <= 0) {
+      if (this.hasLos(self.x, self.y, target.x, target.y)) {
+        if (this.tryFire(self)) events.push(fireEvent);
       }
     }
   }

@@ -25,11 +25,11 @@
           <strong id="score">0</strong>
         </div>
         <div class="meter-item">
-          <span class="label">我方 HP</span>
+          <span class="label" id="hp-you-label">綠方 HP</span>
           <strong id="hp-you">5</strong>
         </div>
         <div class="meter-item">
-          <span class="label">敵方 HP</span>
+          <span class="label" id="hp-enemy-label">紅方 HP</span>
           <strong id="hp-enemy">5</strong>
         </div>
         <div class="meter-actions">
@@ -37,15 +37,20 @@
         </div>
       </section>
 
+      <div class="mode-row" role="group" aria-label="對戰模式">
+        <button type="button" class="mode-btn is-active" data-mode="pve" id="mode-pve">人 vs AI</button>
+        <button type="button" class="mode-btn" data-mode="aivai" id="mode-aivai">AI vs AI</button>
+      </div>
+
       <div class="controls">
         <button type="button" id="btn-start">開戰</button>
       </div>
 
-      <p id="status" class="status" role="status">點「開戰」開始對決</p>
+      <p id="status" class="status" role="status">選模式後點「開戰」</p>
 
       <div class="stage">
         <canvas id="game" width="360" height="520" aria-label="戰車對決戰場"></canvas>
-        <div class="touch-layer" aria-hidden="true">
+        <div class="touch-layer" id="touch-layer" aria-hidden="true">
           <div id="stick" class="stick">
             <div id="stick-knob" class="stick-knob"></div>
           </div>
@@ -53,14 +58,14 @@
         </div>
       </div>
 
-      <p class="hint">左搖桿移動 · 右側開火 · 炮塔朝移動方向（或鍵盤 WASD／方向鍵＋空白鍵）</p>
+      <p class="hint" id="hint">左搖桿移動 · 右側開火 · 炮塔朝移動方向（或鍵盤 WASD／方向鍵＋空白鍵）</p>
 
       <details class="rules">
         <summary>怎麼玩</summary>
         <ul>
-          <li>綠方是你、紅方是敵；用掩體卡位，五發命中擊毀對手。</li>
-          <li>炮彈撞牆會引爆；炮塔可隨移動方向轉向。</li>
-          <li>致敬對戰坦克類型，非商業作品複製品。</li>
+          <li><strong>人 vs AI</strong>：你操控綠方，紅方由電腦操作。</li>
+          <li><strong>AI vs AI</strong>：雙方皆由電腦對打，可觀戰（綠偏猛攻、紅偏拉距）。</li>
+          <li>用掩體卡位，五發命中擊毀對手；炮彈撞牆會引爆。</li>
         </ul>
       </details>
     </main>

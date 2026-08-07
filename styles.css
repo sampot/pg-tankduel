@@ -116,6 +116,28 @@ h1 {
   gap: 0.5rem;
 }
 
+.mode-row {
+  display: flex;
+  gap: 0.45rem;
+}
+
+.mode-btn {
+  color: var(--text);
+  background: color-mix(in oklab, var(--text) 5%, transparent);
+  border: 1px solid var(--line);
+  box-shadow: none;
+}
+
+.mode-btn.is-active {
+  color: var(--on-accent);
+  background: linear-gradient(135deg, #4a9a4e, var(--accent));
+  border-color: transparent;
+}
+
+.stage.is-spectate .touch-layer {
+  display: none;
+}
+
 button {
   appearance: none;
   border: 0;

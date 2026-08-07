@@ -16,6 +16,17 @@ const btnMute = document.getElementById("btn-mute");
 const btnFire = document.getElementById("btn-fire");
 const stickEl = document.getElementById("stick");
 const knobEl = document.getElementById("stick-knob");
+const touchLayer = document.getElementById("touch-layer");
+const stageEl = document.querySelector(".stage");
+const hintEl = document.getElementById("hint");
+const hpYouLabel = document.getElementById("hp-you-label");
+const hpEnemyLabel = document.getElementById("hp-enemy-label");
+const modeBtns = /** @type {NodeListOf<HTMLButtonElement>} */ (
+  document.querySelectorAll(".mode-btn")
+);
+
+/** @type {'pve'|'aivai'} */
+let selectedMode = "pve";
 
 canvas.width = W;
 canvas.height = H;
@@ -37,11 +48,35 @@ function setStatus(msg, tone = "") {
   statusEl.dataset.tone = tone;
 }
 
+function syncModeUi() {
+  for (const btn of modeBtns) {
+    btn.classList.toggle("is-active", btn.dataset.mode === selectedMode);
+  }
+  const watching = selectedMode === "aivai" || game.isWatching;
+  stageEl.classList.toggle("is-spectate", watching && (game.status === "playing" || selectedMode === "aivai"));
+  if (selectedMode === "aivai") {
+    hpYouLabel.textContent = "綠 AI";
+    hpEnemyLabel.textContent = "紅 AI";
+    hintEl.textContent = "觀戰模式：雙方 AI 自動對打（綠偏猛攻、紅偏拉距）";
+    touchLayer.style.pointerEvents = "none";
+  } else {
+    hpYouLabel.textContent = "我方 HP";
+    hpEnemyLabel.textContent = "敵方 HP";
+    hintEl.textContent = "左搖桿移動 · 右側開火 · 炮塔朝移動方向（或鍵盤 WASD／方向鍵＋空白鍵）";
+    touchLayer.style.pointerEvents = "";
+  }
+}
+
 function syncHud() {
   scoreEl.textContent = String(game.score);
   hpYouEl.textContent = String(game.player?.hp ?? 0);
   hpEnemyEl.textContent = String(game.enemy?.hp ?? 0);
   btnStart.textContent = game.status === "ready" ? "開戰" : game.status === "playing" ? "重開" : "再戰";
+  const spectate = game.mode === "aivai";
+  stageEl.classList.toggle("is-spectate", spectate);
+  if (game.status === "playing" && spectate) {
+    touchLayer.style.pointerEvents = "none";
+  }
 }
 
 /**
@@ -199,11 +234,29 @@ function readKeyboard() {
 btnStart.addEventListener("click", async () => {
   await audio.unlock();
   audio.click();
-  game.start();
-  audio.startEngine();
+  game.start(selectedMode);
+  syncModeUi();
+  if (selectedMode === "pve") audio.startEngine();
+  else audio.stopEngine();
   setStatus(game.message);
   syncHud();
 });
+
+for (const btn of modeBtns) {
+  btn.addEventListener("click", async () => {
+    await audio.unlock();
+    audio.click();
+    selectedMode = /** @type {'pve'|'aivai'} */ (btn.dataset.mode || "pve");
+    syncModeUi();
+    if (game.status === "playing") {
+      game.start(selectedMode);
+      if (selectedMode === "pve") audio.startEngine();
+      else audio.stopEngine();
+      setStatus(game.message);
+      syncHud();
+    }
+  });
+}
 
 btnMute.addEventListener("click", async () => {
   await audio.unlock();
@@ -211,7 +264,7 @@ btnMute.addEventListener("click", async () => {
   btnMute.setAttribute("aria-pressed", on ? "true" : "false");
   btnMute.textContent = on ? "音效開" : "音效關";
   audio.setEnabled(on);
-  if (on && game.status === "playing") audio.startEngine();
+  if (on && game.status === "playing" && game.mode === "pve") audio.startEngine();
 });
 
 /**
@@ -221,22 +274,24 @@ function frame(ts) {
   const dt = Math.min(0.05, (ts - (lastTs || ts)) / 1000);
   lastTs = ts;
 
-  readKeyboard();
+  if (game.mode === "pve") readKeyboard();
   const frameInput = {
-    mx: input.mx,
-    my: input.my,
-    aimX: input.aimX,
-    aimY: input.aimY,
-    fire: input.fire,
+    mx: game.mode === "pve" ? input.mx : 0,
+    my: game.mode === "pve" ? input.my : 0,
+    aimX: game.mode === "pve" ? input.aimX : 0,
+    aimY: game.mode === "pve" ? input.aimY : 0,
+    fire: game.mode === "pve" ? input.fire : false,
   };
 
   const { events } = game.update(dt, frameInput);
   handleEvents(events);
 
-  const throttle = Math.hypot(input.mx, input.my);
-  if (game.status === "playing") audio.setEngine(throttle);
+  const throttle = game.mode === "pve" ? Math.hypot(input.mx, input.my) : 0.35;
+  if (game.status === "playing") {
+    if (game.mode === "pve") audio.setEngine(throttle);
+    else audio.setEngine(0);
+  }
 
-  // draw
   ctx.save();
   if (game.shake > 0.2) {
     ctx.translate((Math.random() - 0.5) * game.shake, (Math.random() - 0.5) * game.shake);
@@ -251,7 +306,7 @@ function frame(ts) {
   requestAnimationFrame(frame);
 }
 
-layoutCanvas();
+syncModeUi();
 syncHud();
 setStatus(game.message);
 requestAnimationFrame(frame);
