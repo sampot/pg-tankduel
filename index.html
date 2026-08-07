@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta
+      name="description"
+      content="戰車對決：俯視坦克對戰、炮塔瞄準、爆炸特效。純前端 Playgrounds SAM，適配手機與桌面、自製音效。"
+    />
+    <title>戰車對決</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main>
+      <header class="hero">
+        <p class="eyebrow">街機</p>
+        <h1>戰車對決</h1>
+        <p class="tagline">履帶炮塔 · 掩體彈道 · 純娛樂</p>
+      </header>
+
+      <section class="meter" aria-label="對局狀態">
+        <div class="meter-item">
+          <span class="label">分數</span>
+          <strong id="score">0</strong>
+        </div>
+        <div class="meter-item">
+          <span class="label">我方 HP</span>
+          <strong id="hp-you">5</strong>
+        </div>
+        <div class="meter-item">
+          <span class="label">敵方 HP</span>
+          <strong id="hp-enemy">5</strong>
+        </div>
+        <div class="meter-actions">
+          <button type="button" id="btn-mute" class="secondary" aria-pressed="true">音效開</button>
+        </div>
+      </section>
+
+      <div class="controls">
+        <button type="button" id="btn-start">開戰</button>
+      </div>
+
+      <p id="status" class="status" role="status">點「開戰」開始對決</p>
+
+      <div class="stage">
+        <canvas id="game" width="360" height="520" aria-label="戰車對決戰場"></canvas>
+        <div class="touch-layer" aria-hidden="true">
+          <div id="stick" class="stick">
+            <div id="stick-knob" class="stick-knob"></div>
+          </div>
+          <button type="button" id="btn-fire" class="fire-btn">炮</button>
+        </div>
+      </div>
+
+      <p class="hint">左搖桿移動 · 右側開火 · 炮塔朝移動方向（或鍵盤 WASD／方向鍵＋空白鍵）</p>
+
+      <details class="rules">
+        <summary>怎麼玩</summary>
+        <ul>
+          <li>綠方是你、紅方是敵；用掩體卡位，五發命中擊毀對手。</li>
+          <li>炮彈撞牆會引爆；炮塔可隨移動方向轉向。</li>
+          <li>致敬對戰坦克類型，非商業作品複製品。</li>
+        </ul>
+      </details>
+    </main>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
