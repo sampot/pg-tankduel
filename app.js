@@ -84,9 +84,13 @@ function syncHud() {
  */
 function handleEvents(events) {
   for (const e of events) {
-    if (e === "fire") audio.fire();
-    else if (e === "enemyFire") audio.enemyFire();
-    else if (e === "impact") audio.impact();
+    if (e === "fire") {
+      void audio.unlock();
+      audio.fire();
+    } else if (e === "enemyFire") {
+      void audio.unlock();
+      audio.enemyFire();
+    } else if (e === "impact") audio.impact();
     else if (e === "hit") {
       audio.hit();
       for (const t of game.tanks) {
