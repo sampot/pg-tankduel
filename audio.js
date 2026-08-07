@@ -108,17 +108,31 @@ export class TankAudio {
     this.tone(520, 0.04, "triangle", 0.06);
   }
 
-  /** Cannon blast. */
+  /** Cannon blast — loud muzzle crack + bass kick. */
   fire() {
-    this.noise(0.12, 0.22, 0, 1800, "bandpass");
-    this.noise(0.18, 0.16, 0.02, 400, "lowpass");
-    this.tone(180, 0.1, "sawtooth", 0.1, 0, 70);
-    this.tone(90, 0.16, "sine", 0.14, 0.01, 40);
+    this.ensure();
+    if (this.ctx?.state === "suspended") void this.ctx.resume();
+    // sharp crack
+    this.noise(0.06, 0.38, 0, 3200, "bandpass");
+    this.noise(0.1, 0.28, 0.01, 900, "highpass");
+    // body boom
+    this.noise(0.22, 0.26, 0.02, 280, "lowpass");
+    this.tone(120, 0.12, "sawtooth", 0.2, 0, 55);
+    this.tone(70, 0.22, "sine", 0.26, 0.005, 32);
+    this.tone(45, 0.28, "triangle", 0.16, 0.02, 28);
+    // shell whoosh departing
+    this.noise(0.14, 0.12, 0.04, 2400, "bandpass");
+    this.tone(880, 0.08, "triangle", 0.06, 0.03, 220);
   }
 
   enemyFire() {
-    this.noise(0.1, 0.16, 0, 1400, "bandpass");
-    this.tone(150, 0.09, "sawtooth", 0.08, 0, 60);
+    this.ensure();
+    if (this.ctx?.state === "suspended") void this.ctx.resume();
+    this.noise(0.055, 0.32, 0, 2800, "bandpass");
+    this.noise(0.18, 0.22, 0.015, 320, "lowpass");
+    this.tone(100, 0.11, "sawtooth", 0.16, 0, 48);
+    this.tone(58, 0.2, "sine", 0.2, 0.01, 30);
+    this.noise(0.12, 0.1, 0.04, 2000, "bandpass");
   }
 
   /** Small shell impact. */
