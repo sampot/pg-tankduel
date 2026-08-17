@@ -29,9 +29,11 @@ python3 -m http.server 8080
 | 操作 | 說明 |
 | --- | --- |
 | 模式 | 人 vs AI／AI vs AI 觀戰 |
-| 左搖桿／WASD | 移動（僅人機模式） |
-| 炮鈕／空白鍵 | 開火（僅人機模式） |
+| 左下動態搖桿／WASD | 在左下操作區任意按住為圓心並拖曳移動（僅人機模式） |
+| 右下炮鈕／空白鍵 | 按住開火，可與搖桿同時操作（僅人機模式） |
 | **開戰** | 開始或重開 |
+
+放開、觸控取消、視窗失焦或頁面隱藏時，觸控輸入都會自動歸零。
 
 ## 檔案
 
@@ -40,10 +42,18 @@ python3 -m http.server 8080
 | `index.html` | 結構 |
 | `styles.css` | 手機優先／桌面遞增 |
 | `app.js` | 輸入、HUD、主迴圈 |
+| `input-controls.js` | 搖桿向量正規化與多來源輸入合併 |
+| `input-controls.test.js` | 輸入控制單元測試 |
 | `game.js` | 物理、AI、勝敗 |
 | `sprites.js` | 坦克／爆炸繪製 |
 | `audio.js` | 炮擊與爆炸 Web Audio |
 | `functions.js` | Playgrounds 可選 stub |
+
+## 測試
+
+```bash
+npx --yes vitest run
+```
 
 ## License
 

@@ -50,15 +50,18 @@
 
       <div class="stage">
         <canvas id="game" width="360" height="520" aria-label="戰車對決戰場"></canvas>
-        <div class="touch-layer" id="touch-layer" aria-hidden="true">
-          <div id="stick" class="stick">
-            <div id="stick-knob" class="stick-knob"></div>
+        <div class="touch-layer" id="touch-layer">
+          <div id="stick-zone" class="stick-zone" aria-label="左側移動搖桿區">
+            <span class="stick-zone-label" aria-hidden="true">任意按住移動</span>
+            <div id="stick" class="stick" aria-hidden="true">
+              <div id="stick-knob" class="stick-knob"></div>
+            </div>
           </div>
-          <button type="button" id="btn-fire" class="fire-btn">炮</button>
+          <button type="button" id="btn-fire" class="fire-btn" aria-pressed="false">炮</button>
         </div>
       </div>
 
-      <p class="hint" id="hint">左搖桿移動 · 右側開火 · 炮塔朝移動方向（或鍵盤 WASD／方向鍵＋空白鍵）</p>
+      <p class="hint" id="hint">左下區域任意按住拖曳 · 右下炮鍵開火（或鍵盤 WASD／方向鍵＋空白鍵）</p>
 
       <details class="rules">
         <summary>怎麼玩</summary>

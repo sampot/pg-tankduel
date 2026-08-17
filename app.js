@@ -1,5 +1,10 @@
 import { TankAudio } from "./audio.js";
 import { TankDuelGame, W, H } from "./game.js";
+import {
+  keyboardVector,
+  mergeInputSources,
+  normalizeStickDrag,
+} from "./input-controls.js";
 import { drawArena, drawBullet, drawExplosion, drawTank } from "./sprites.js";
 
 const audio = new TankAudio();
@@ -14,6 +19,7 @@ const statusEl = document.getElementById("status");
 const btnStart = document.getElementById("btn-start");
 const btnMute = document.getElementById("btn-mute");
 const btnFire = document.getElementById("btn-fire");
+const stickZoneEl = document.getElementById("stick-zone");
 const stickEl = document.getElementById("stick");
 const knobEl = document.getElementById("stick-knob");
 const touchLayer = document.getElementById("touch-layer");
@@ -35,6 +41,10 @@ canvas.height = H;
 const input = { mx: 0, my: 0, aimX: 0, aimY: 0, fire: false };
 /** @type {Set<string>} */
 const keys = new Set();
+/** @type {{ x: number, y: number }} */
+let stickMove = { x: 0, y: 0 };
+/** @type {Set<number>} */
+const firePointers = new Set();
 let lastTs = 0;
 /** @type {Set<number>} */
 const flashIds = new Set();
@@ -62,7 +72,7 @@ function syncModeUi() {
   } else {
     hpYouLabel.textContent = "我方 HP";
     hpEnemyLabel.textContent = "敵方 HP";
-    hintEl.textContent = "左搖桿移動 · 右側開火 · 炮塔朝移動方向（或鍵盤 WASD／方向鍵＋空白鍵）";
+    hintEl.textContent = "左下區域任意按住拖曳 · 右下炮鍵開火（或鍵盤 WASD／方向鍵＋空白鍵）";
     touchLayer.style.pointerEvents = "";
   }
 }
@@ -116,60 +126,69 @@ function layoutCanvas() {
   // CSS scales; drawing uses logical W/H
 }
 
-/**
- * @param {PointerEvent} ev
- */
-function stickVector(ev) {
-  const rect = stickEl.getBoundingClientRect();
-  const cx = rect.left + rect.width / 2;
-  const cy = rect.top + rect.height / 2;
-  let dx = (ev.clientX - cx) / (rect.width * 0.42);
-  let dy = (ev.clientY - cy) / (rect.height * 0.42);
-  const mag = Math.hypot(dx, dy);
-  if (mag > 1) {
-    dx /= mag;
-    dy /= mag;
-  }
-  return { dx, dy };
-}
-
-function setKnob(dx, dy) {
-  knobEl.style.transform = `translate(${dx * 28}px, ${dy * 28}px)`;
-}
+const STICK_RADIUS = 58;
+const STICK_DEADZONE = 0.15;
+const KNOB_TRAVEL = 40;
 
 /** @type {number | null} */
 let stickPointer = null;
+/** @type {{ x: number, y: number }} */
+let stickOrigin = { x: 0, y: 0 };
 
-stickEl.addEventListener(
+function syncInputSources() {
+  const merged = mergeInputSources({
+    keyboardMove: keyboardVector(keys),
+    stickMove,
+    stickActive: stickPointer != null,
+    keyboardFire: keys.has("Space"),
+    touchFire: firePointers.size > 0,
+  });
+  input.mx = merged.moveX;
+  input.my = merged.moveY;
+  input.fire = merged.fire;
+  if (Math.hypot(input.mx, input.my) > 0) {
+    input.aimX = input.mx;
+    input.aimY = input.my;
+  }
+}
+
+function setStickVisual(x, y) {
+  knobEl.style.transform = `translate(-50%, -50%) translate(${x * KNOB_TRAVEL}px, ${y * KNOB_TRAVEL}px)`;
+}
+
+stickZoneEl.addEventListener(
   "pointerdown",
   (ev) => {
+    if (stickPointer != null) return;
     ev.preventDefault();
-    stickEl.setPointerCapture(ev.pointerId);
+    stickZoneEl.setPointerCapture(ev.pointerId);
     stickPointer = ev.pointerId;
+    stickOrigin = { x: ev.clientX, y: ev.clientY };
+    stickMove = { x: 0, y: 0 };
+    const rect = stickZoneEl.getBoundingClientRect();
+    stickEl.style.left = `${ev.clientX - rect.left}px`;
+    stickEl.style.top = `${ev.clientY - rect.top}px`;
+    stickEl.classList.add("is-active");
+    setStickVisual(0, 0);
+    syncInputSources();
     void audio.unlock();
-    const { dx, dy } = stickVector(ev);
-    input.mx = dx;
-    input.my = dy;
-    input.aimX = dx;
-    input.aimY = dy;
-    setKnob(dx, dy);
   },
   { passive: false },
 );
 
-stickEl.addEventListener(
+stickZoneEl.addEventListener(
   "pointermove",
   (ev) => {
     if (stickPointer !== ev.pointerId) return;
     ev.preventDefault();
-    const { dx, dy } = stickVector(ev);
-    input.mx = dx;
-    input.my = dy;
-    if (Math.hypot(dx, dy) > 0.15) {
-      input.aimX = dx;
-      input.aimY = dy;
-    }
-    setKnob(dx, dy);
+    stickMove = normalizeStickDrag(
+      ev.clientX - stickOrigin.x,
+      ev.clientY - stickOrigin.y,
+      STICK_RADIUS,
+      STICK_DEADZONE,
+    );
+    setStickVisual(stickMove.x, stickMove.y);
+    syncInputSources();
   },
   { passive: false },
 );
@@ -177,63 +196,76 @@ stickEl.addEventListener(
 function endStick(ev) {
   if (stickPointer !== ev.pointerId) return;
   stickPointer = null;
-  input.mx = 0;
-  input.my = 0;
-  setKnob(0, 0);
+  stickMove = { x: 0, y: 0 };
+  setStickVisual(0, 0);
+  stickEl.classList.remove("is-active");
+  syncInputSources();
 }
 
-stickEl.addEventListener("pointerup", endStick);
-stickEl.addEventListener("pointercancel", endStick);
+stickZoneEl.addEventListener("pointerup", endStick);
+stickZoneEl.addEventListener("pointercancel", endStick);
+stickZoneEl.addEventListener("lostpointercapture", endStick);
 
 btnFire.addEventListener(
   "pointerdown",
   (ev) => {
     ev.preventDefault();
+    btnFire.setPointerCapture(ev.pointerId);
+    firePointers.add(ev.pointerId);
+    btnFire.classList.add("is-pressed");
+    btnFire.setAttribute("aria-pressed", "true");
+    syncInputSources();
     void audio.unlock();
-    input.fire = true;
   },
   { passive: false },
 );
-btnFire.addEventListener("pointerup", () => {
-  input.fire = false;
-});
-btnFire.addEventListener("pointerleave", () => {
-  input.fire = false;
-});
+
+function endFire(ev) {
+  if (!firePointers.delete(ev.pointerId)) return;
+  if (firePointers.size === 0) {
+    btnFire.classList.remove("is-pressed");
+    btnFire.setAttribute("aria-pressed", "false");
+  }
+  syncInputSources();
+}
+
+btnFire.addEventListener("pointerup", endFire);
+btnFire.addEventListener("pointercancel", endFire);
+btnFire.addEventListener("lostpointercapture", endFire);
 
 window.addEventListener("keydown", (ev) => {
   keys.add(ev.code);
   if (ev.code === "Space") {
     ev.preventDefault();
-    input.fire = true;
   }
+  syncInputSources();
   void audio.unlock();
 });
 window.addEventListener("keyup", (ev) => {
   keys.delete(ev.code);
-  if (ev.code === "Space") input.fire = false;
+  syncInputSources();
 });
 
 function readKeyboard() {
-  let mx = 0;
-  let my = 0;
-  if (keys.has("KeyW") || keys.has("ArrowUp")) my -= 1;
-  if (keys.has("KeyS") || keys.has("ArrowDown")) my += 1;
-  if (keys.has("KeyA") || keys.has("ArrowLeft")) mx -= 1;
-  if (keys.has("KeyD") || keys.has("ArrowRight")) mx += 1;
-  if (mx || my) {
-    const mag = Math.hypot(mx, my) || 1;
-    input.mx = mx / mag;
-    input.my = my / mag;
-    input.aimX = input.mx;
-    input.aimY = input.my;
-    setKnob(input.mx, input.my);
-  } else if (stickPointer == null) {
-    input.mx = 0;
-    input.my = 0;
-    setKnob(0, 0);
-  }
+  syncInputSources();
 }
+
+function resetInputSources() {
+  keys.clear();
+  stickPointer = null;
+  stickMove = { x: 0, y: 0 };
+  firePointers.clear();
+  stickEl.classList.remove("is-active");
+  btnFire.classList.remove("is-pressed");
+  btnFire.setAttribute("aria-pressed", "false");
+  setStickVisual(0, 0);
+  syncInputSources();
+}
+
+window.addEventListener("blur", resetInputSources);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") resetInputSources();
+});
 
 btnStart.addEventListener("click", async () => {
   await audio.unlock();
@@ -251,6 +283,7 @@ for (const btn of modeBtns) {
     await audio.unlock();
     audio.click();
     selectedMode = /** @type {'pve'|'aivai'} */ (btn.dataset.mode || "pve");
+    if (selectedMode === "aivai") resetInputSources();
     syncModeUi();
     if (game.status === "playing") {
       game.start(selectedMode);
